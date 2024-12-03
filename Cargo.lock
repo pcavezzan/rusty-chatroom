@@ -3,5 +3,13 @@
 version = 4
 
 [[package]]
-name = "rusty-chatroom"
+name = "backend"
+version = "0.1.0"
+
+[[package]]
+name = "common"
+version = "0.1.0"
+
+[[package]]
+name = "frontend"
 version = "0.1.0"
