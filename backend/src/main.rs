@@ -1,3 +1,5 @@
+use chrono::Utc;
+use common::ChatMessage;
 use rocket::async_stream::stream;
 use rocket::futures::stream::SplitSink;
 use rocket::futures::{SinkExt, StreamExt};
@@ -5,6 +7,7 @@ use rocket::tokio::sync::Mutex;
 use rocket::{routes, State};
 use rocket_ws::stream::DuplexStream;
 use rocket_ws::{Channel, Message, WebSocket};
+use serde_json::json;
 use std::collections::HashMap;
 use std::os::macos::raw::stat;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -27,10 +30,18 @@ impl ChatRoom {
         cons.remove(&id);
     }
 
-    pub async fn broadcast(&self, message: Message) {
+    pub async fn broadcast(&self, message: Message, user_id: usize) {
+        let chat_message = ChatMessage {
+            message: message.to_string(),
+            author: format!("User #{}", user_id),
+            created_at: Utc::now().naive_utc(),
+        };
+
         let mut cons = self.connections.lock().await;
         for (_, sink) in cons.iter_mut() {
-            let _ = sink.send(message.clone()).await;
+            let _ = sink
+                .send(Message::Text(json!(chat_message).to_string()))
+                .await;
         }
     }
 }
@@ -43,7 +54,7 @@ fn chat<'r>(ws: WebSocket, state: &'r State<ChatRoom>) -> Channel<'r> {
             let (ws_sink, mut ws_stream) = stream.split();
             state.add(user_id, ws_sink).await;
             while let Some(message) = ws_stream.next().await {
-                state.broadcast(message?).await;
+                state.broadcast(message?, user_id).await;
             }
             state.remove(user_id).await;
             Ok(())
