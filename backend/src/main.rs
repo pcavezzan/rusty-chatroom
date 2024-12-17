@@ -1,5 +1,5 @@
 use chrono::Utc;
-use common::ChatMessage;
+use common::{ChatMessage, WebSocketMessage, WebSocketMessageType};
 use rocket::async_stream::stream;
 use rocket::futures::stream::SplitSink;
 use rocket::futures::{SinkExt, StreamExt};
@@ -36,11 +36,15 @@ impl ChatRoom {
             author: format!("User #{}", user_id),
             created_at: Utc::now().naive_utc(),
         };
-
+        let webSocketMessage = WebSocketMessage {
+            message_type: WebSocketMessageType::NewMessage,
+            message: Some(chat_message),
+            users: None,
+        };
         let mut cons = self.connections.lock().await;
         for (_, sink) in cons.iter_mut() {
             let _ = sink
-                .send(Message::Text(json!(chat_message).to_string()))
+                .send(Message::Text(json!(webSocketMessage).to_string()))
                 .await;
         }
     }
