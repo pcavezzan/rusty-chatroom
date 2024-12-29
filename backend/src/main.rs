@@ -1,6 +1,5 @@
 use chrono::Utc;
 use common::{ChatMessage, WebSocketMessage, WebSocketMessageType};
-use rocket::async_stream::stream;
 use rocket::futures::stream::SplitSink;
 use rocket::futures::{SinkExt, StreamExt};
 use rocket::tokio::sync::Mutex;
@@ -9,7 +8,6 @@ use rocket_ws::stream::DuplexStream;
 use rocket_ws::{Channel, Message, WebSocket};
 use serde_json::json;
 use std::collections::HashMap;
-use std::os::macos::raw::stat;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 static USER_ID_COUNTER: AtomicUsize = AtomicUsize::new(0);
@@ -56,7 +54,7 @@ impl ChatRoom {
             users.push(format!("User #{}", id));
         }
         let web_socket_message = WebSocketMessage {
-            message_type: WebSocketMessageType::NewMessage,
+            message_type: WebSocketMessageType::UsersList,
             message: None,
             users: Some(users),
         };
@@ -70,7 +68,7 @@ impl ChatRoom {
 
 #[rocket::get("/")]
 fn chat<'r>(ws: WebSocket, state: &'r State<ChatRoom>) -> Channel<'r> {
-    ws.channel(move |mut stream| {
+    ws.channel(move |stream| {
         Box::pin(async move {
             let user_id = USER_ID_COUNTER.fetch_add(1, Ordering::Relaxed);
             let (ws_sink, mut ws_stream) = stream.split();

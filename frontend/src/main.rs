@@ -4,6 +4,7 @@ mod users_list;
 
 use crate::message_list::MessageList;
 use crate::send_dialog::SendDialog;
+use crate::users_list::UsersList;
 use common::{WebSocketMessage, WebSocketMessageType};
 use yew::prelude::*;
 use yew_hooks::use_websocket;
@@ -12,6 +13,8 @@ use yew_hooks::use_websocket;
 fn App() -> Html {
     let messages_handle = use_state(Vec::new);
     let messages = (*messages_handle).clone();
+    let users_handle = use_state(Vec::new);
+    let users = (*users_handle).clone();
 
     let ws = use_websocket("ws://127.0.0.1:8000".to_string());
 
@@ -21,12 +24,14 @@ fn App() -> Html {
             let websocket_message: WebSocketMessage = serde_json::from_str(&ws_msg).unwrap();
             match websocket_message.message_type {
                 WebSocketMessageType::NewMessage => {
-                    if let Some(msg) = websocket_message.message {
-                        cloned_messages.push(msg);
-                        messages_handle.set(cloned_messages);
-                    }
+                    let msg = websocket_message.message.expect("message not found");
+                    cloned_messages.push(msg);
+                    messages_handle.set(cloned_messages);
                 }
-                WebSocketMessageType::UsersList => {}
+                WebSocketMessageType::UsersList => {
+                    let users = websocket_message.users.expect("users not found");
+                    users_handle.set(users);
+                }
             }
         }
     });
@@ -37,9 +42,14 @@ fn App() -> Html {
     });
 
     html! {
-        <div class="container">
+        <div class="container-fluid">
             <div class="row">
-                <MessageList messages={messages} />
+                <div class="col-sm-3">
+                    <UsersList users={users} />
+                </div>
+                <div class="col-sm-9">
+                    <MessageList messages={messages} />
+                </div>
             </div>
             <div class="row">
                 <SendDialog send_message_callback={send_message_callback} />
