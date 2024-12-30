@@ -15,6 +15,8 @@ fn App() -> Html {
     let messages = (*messages_handle).clone();
     let users_handle = use_state(Vec::new);
     let users = (*users_handle).clone();
+    let username_handler = use_state(String::default);
+    let username = (*username_handler).clone();
 
     let ws = use_websocket("ws://127.0.0.1:8000".to_string());
 
@@ -24,13 +26,19 @@ fn App() -> Html {
             let websocket_message: WebSocketMessage = serde_json::from_str(&ws_msg).unwrap();
             match websocket_message.message_type {
                 WebSocketMessageType::NewMessage => {
-                    let msg = websocket_message.message.expect("message not found");
+                    let msg = websocket_message.message.expect("Missing message payload");
                     cloned_messages.push(msg);
                     messages_handle.set(cloned_messages);
                 }
                 WebSocketMessageType::UsersList => {
-                    let users = websocket_message.users.expect("users not found");
+                    let users = websocket_message.users.expect("Missing users payload");
                     users_handle.set(users);
+                }
+                WebSocketMessageType::UsernameChange => {
+                    let username = websocket_message
+                        .username
+                        .expect("Missing username payload");
+                    username_handler.set(username);
                 }
             }
         }
@@ -52,7 +60,7 @@ fn App() -> Html {
                 </div>
             </div>
             <div class="row">
-                <SendDialog send_message_callback={send_message_callback} />
+                <SendDialog send_message_callback={send_message_callback} username={username} />
             </div>
         </div>
     }

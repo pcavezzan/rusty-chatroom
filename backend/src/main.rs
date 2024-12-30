@@ -38,6 +38,7 @@ impl ChatRoom {
             message_type: WebSocketMessageType::NewMessage,
             message: Some(chat_message),
             users: None,
+            username: None,
         };
         let mut cons = self.connections.lock().await;
         for (_, sink) in cons.iter_mut() {
@@ -57,6 +58,7 @@ impl ChatRoom {
             message_type: WebSocketMessageType::UsersList,
             message: None,
             users: Some(users),
+            username: None,
         };
         for (_, sink) in cons.iter_mut() {
             let _ = sink
