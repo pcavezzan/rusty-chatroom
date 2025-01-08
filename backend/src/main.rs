@@ -39,7 +39,7 @@ impl ChatRoom {
 
     pub async fn broadcast_message(&self, message: Message, author_id: usize) {
         let mut cons = self.connections.lock().await;
-        let mut conn = cons.get(&author_id).unwrap();
+        let conn = cons.get(&author_id).unwrap();
         let chat_message = ChatMessage {
             message: message.to_string(),
             author: conn.username.clone(),
@@ -62,7 +62,7 @@ impl ChatRoom {
     pub async fn broadcast_user_list(&self) {
         let mut cons = self.connections.lock().await;
         let mut users = vec![];
-        for (id, conn) in cons.iter_mut() {
+        for (_, conn) in cons.iter_mut() {
             users.push(conn.username.clone());
         }
         let web_socket_message = WebSocketMessage {
