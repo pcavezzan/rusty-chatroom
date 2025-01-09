@@ -1,4 +1,3 @@
-use chrono::Utc;
 use common::{ChatMessage, WebSocketMessage, WebSocketMessageType};
 use rocket::futures::stream::SplitSink;
 use rocket::futures::{SinkExt, StreamExt};
@@ -37,17 +36,11 @@ impl ChatRoom {
         cons.remove(&id);
     }
 
-    pub async fn broadcast_message(&self, message: Message, author_id: usize) {
+    pub async fn broadcast_message(&self, message: ChatMessage) {
         let mut cons = self.connections.lock().await;
-        let conn = cons.get(&author_id).unwrap();
-        let chat_message = ChatMessage {
-            message: message.to_string(),
-            author: conn.username.clone(),
-            created_at: Utc::now().naive_utc(),
-        };
         let web_socket_message = WebSocketMessage {
             message_type: WebSocketMessageType::NewMessage,
-            message: Some(chat_message),
+            message: Some(message),
             users: None,
             username: None,
         };
@@ -81,17 +74,25 @@ impl ChatRoom {
 
     pub async fn send_username(&self, id: usize) {
         let mut conns = self.connections.lock().await;
-        let conn = conns.get_mut(&id).unwrap();
-        let web_socket_message = WebSocketMessage {
-            message_type: WebSocketMessageType::UsernameChange,
-            message: None,
-            users: None,
-            username: Some(conn.username.clone()),
-        };
-        let _ = conn
-            .sink
-            .send(Message::Text(json!(web_socket_message).to_string()))
-            .await;
+        if let Some(conn) = conns.get_mut(&id) {
+            let web_socket_message = WebSocketMessage {
+                message_type: WebSocketMessageType::UsernameChange,
+                message: None,
+                users: None,
+                username: Some(conn.username.clone()),
+            };
+            let _ = conn
+                .sink
+                .send(Message::Text(json!(web_socket_message).to_string()))
+                .await;
+        }
+    }
+
+    pub async fn change_username(&self, new_username: String, id: usize) {
+        let mut conns = self.connections.lock().await;
+        if let Some(conn) = conns.get_mut(&id) {
+            conn.username = new_username;
+        }
     }
 }
 
@@ -106,8 +107,10 @@ fn chat<'r>(ws: WebSocket, state: &'r State<ChatRoom>) -> Channel<'r> {
             state.broadcast_user_list().await;
             state.send_username(user_id).await;
 
-            while let Some(message) = ws_stream.next().await {
-                state.broadcast_message(message?, user_id).await;
+            while let Some(message_result) = ws_stream.next().await {
+                if let Ok(message) = message_result {
+                    handle_incoming_message(message, state, user_id).await;
+                }
             }
 
             state.remove(user_id).await;
@@ -116,6 +119,37 @@ fn chat<'r>(ws: WebSocket, state: &'r State<ChatRoom>) -> Channel<'r> {
             Ok(())
         })
     })
+}
+
+async fn handle_incoming_message(
+    message_content: Message,
+    state: &State<ChatRoom>,
+    conn_id: usize,
+) {
+    match message_content {
+        Message::Text(text) => {
+            if let Ok(websocket_message) = serde_json::from_str::<WebSocketMessage>(&text) {
+                match websocket_message.message_type {
+                    WebSocketMessageType::NewMessage => {
+                        if let Some(ws_msg) = websocket_message.message {
+                            state.broadcast_message(ws_msg).await;
+                        }
+                    }
+                    WebSocketMessageType::UsernameChange => {
+                        if let Some(ws_username) = websocket_message.username {
+                            state.change_username(ws_username, conn_id).await;
+                            state.send_username(conn_id).await;
+                            state.broadcast_user_list().await;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        _ => {
+            // Only text supported
+        }
+    }
 }
 
 #[rocket::main]
