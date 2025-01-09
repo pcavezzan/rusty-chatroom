@@ -1,3 +1,4 @@
+use chrono::Utc;
 use common::{ChatMessage, WebSocketMessage, WebSocketMessageType};
 use rocket::futures::stream::SplitSink;
 use rocket::futures::{SinkExt, StreamExt};
@@ -89,9 +90,23 @@ impl ChatRoom {
     }
 
     pub async fn change_username(&self, new_username: String, id: usize) {
-        let mut conns = self.connections.lock().await;
-        if let Some(conn) = conns.get_mut(&id) {
-            conn.username = new_username;
+        let old_username_result = {
+            let mut conns = self.connections.lock().await;
+            if let Some(conn) = conns.get_mut(&id) {
+                let old_username = conn.username.clone();
+                conn.username = new_username.clone();
+                Some(old_username)
+            } else {
+                None
+            }
+        };
+        if let Some(old_username) = old_username_result {
+            let message = ChatMessage {
+                message: format!("User {} changed username to {}", old_username, new_username),
+                author: "System".to_string(),
+                created_at: Utc::now().naive_utc(),
+            };
+            Self::broadcast_message(&self, message).await;
         }
     }
 }
