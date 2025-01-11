@@ -1,5 +1,5 @@
 use common::ChatMessage;
-use yew::{function_component, html, Html, Properties};
+use yew::{classes, function_component, html, Html, Properties};
 
 #[derive(Properties, PartialEq)]
 pub struct MessageListProps {
@@ -11,14 +11,20 @@ pub fn message_list(props: &MessageListProps) -> Html {
     html! {
         <div class="list-group">
         {
-            props.messages.iter().map(|m| html! {
-            <div class="list-group-item list-group-item-action">
-                <div class="d-flex w-100 justify-content-between">
-                    <h5>{m.author.clone()}</h5>
-                    <small>{m.created_at.format("%Y-%m-%d %H:%M:%S").to_string()}</small>
+            props.messages.iter().map(|m|{
+            let mut classes = classes!("list-group-item", "list-group-item-action");
+            if m.author == "System" {
+                classes.push("list-group-item-info");
+            }
+            html! {
+                <div class={classes}>
+                    <div class="d-flex w-100 justify-content-between">
+                        <h5>{m.author.clone()}</h5>
+                        <small>{m.created_at.format("%Y-%m-%d %H:%M:%S").to_string()}</small>
+                    </div>
+                    <p>{m.message.clone()}</p>
                 </div>
-                <p>{m.message.clone()}</p>
-            </div>
+            }
             }).collect::<Html>()
         }
         </div>
