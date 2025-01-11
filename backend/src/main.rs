@@ -24,17 +24,42 @@ struct ChatRoomConnection {
 
 impl ChatRoom {
     pub async fn add(&self, id: usize, sink: SplitSink<DuplexStream, Message>) {
-        let mut cons = self.connections.lock().await;
-        let connection = ChatRoomConnection {
-            username: format!("User #{}", id),
-            sink,
+        let username = {
+            let mut cons = self.connections.lock().await;
+            let username = format!("User #{}", id);
+            let connection = ChatRoomConnection {
+                username: username.clone(),
+                sink,
+            };
+            cons.insert(id, connection);
+            username
         };
-        cons.insert(id, connection);
+        let message = ChatMessage {
+            message: format!("User {} joined the chat", username),
+            author: "System".to_string(),
+            created_at: Utc::now().naive_utc(),
+        };
+        Self::broadcast_message(&self, message).await;
     }
 
     pub async fn remove(&self, id: usize) {
-        let mut cons = self.connections.lock().await;
-        cons.remove(&id);
+        let user_connection_removed = {
+            let mut cons = self.connections.lock().await;
+            let removed_connection = cons.remove(&id);
+            if let Some(removed_connection) = removed_connection {
+                Some(removed_connection.username)
+            } else {
+                None
+            }
+        };
+        if let Some(username) = user_connection_removed {
+            let message = ChatMessage {
+                message: format!("User {} left the chat", username),
+                author: "System".to_string(),
+                created_at: Utc::now().naive_utc(),
+            };
+            Self::broadcast_message(&self, message).await;
+        }
     }
 
     pub async fn broadcast_message(&self, message: ChatMessage) {
